@@ -330,190 +330,190 @@ Gelecek çalışmalarda, simülasyon düzeyindeki bu başarının daha gerçekç
 \clearpage
 \section*{Şekiller Listesi}
 
-\begin{figure}[htbp]
+\begin{figure*}[htbp]
     \centering
-    \includegraphics[width=0.2\linewidth]{outputs/figures/main/trajectory_comparison.png}
+    \includegraphics[width=0.5\textwidth]{outputs/figures/main/trajectory_comparison.png}
     \caption{Otonom otobüsün 2B düzlemdeki referans yörüngesi, gürültülü GNSS ölçümleri ile Klasik EKF, Adaptif EKF ve UKF konum kestirimlerinin genel yörünge karşılaştırması.}
     \label{fig:trajectory}
-\end{figure}
+\end{figure*}
 \clearpage
 
-\begin{figure}[htbp]
+\begin{figure*}[htbp]
     \centering
-    \includegraphics[width=0.2\linewidth]{outputs/figures/main/trajectory_comparison_zoom_a.png}
+    \includegraphics[width=0.5\textwidth]{outputs/figures/main/trajectory_comparison_zoom_a.png}
     \caption{GNSS sinyalinin bozulduğu kentsel kanyon bölgesinde (s: 300--500 m) gürültülü GNSS ölçümleri, Klasik EKF ve Adaptif EKF konum yörüngelerinin yakınlaştırılmış detayı.}
     \label{fig:trajectory_zoom_a}
-\end{figure}
+\end{figure*}
 \clearpage
 
-\begin{figure}[htbp]
+\begin{figure*}[htbp]
     \centering
-    \includegraphics[width=0.2\linewidth]{outputs/figures/main/trajectory_comparison_zoom_b.png}
+    \includegraphics[width=0.5\textwidth]{outputs/figures/main/trajectory_comparison_zoom_b.png}
     \caption{GNSS bozulma bölgesinde Klasik EKF, Adaptif EKF ve UKF konum kestirimlerinin karşılaştırılması (Bozulma bölgesi kırmızı koridor olarak gösterilmiştir).}
     \label{fig:trajectory_zoom_b}
-\end{figure}
+\end{figure*}
 \clearpage
 
-\begin{figure}[htbp]
+\begin{figure*}[htbp]
     \centering
-    \includegraphics[width=0.2\linewidth]{outputs/figures/main/trajectory_comparison_stop.png}
+    \includegraphics[width=0.5\textwidth]{outputs/figures/main/trajectory_comparison_stop.png}
     \caption{Otobüsün 1. durak bölgesine (s: 200 m) yanal ve boylamsal yanaşma yörüngesinin yakınlaştırılmış analizi. Şekilde 3.6m şerit genişliği, durak noktası ve ayrıntılı sapma/RMSE bilgi kutusu yer almaktadır.}
     \label{fig:trajectory_stop}
-\end{figure}
+\end{figure*}
 \clearpage
 
-\begin{figure}[htbp]
+\begin{figure*}[htbp]
     \centering
-    \includegraphics[width=0.2\linewidth]{outputs/figures/main/stop_error_comparison_bar.png}
+    \includegraphics[width=0.5\textwidth]{outputs/figures/main/stop_error_comparison_bar.png}
     \caption{Durak yanaşma bölgesinde EKF ve AEKF yöntemlerinin yanal ve boylamsal sapma RMSE değerlerinin karşılaştırılması.}
     \label{fig:stop_error_bar}
-\end{figure}
+\end{figure*}
 \clearpage
 
-\begin{figure}[htbp]
+\begin{figure*}[htbp]
     \centering
-    \includegraphics[width=0.2\linewidth]{outputs/figures/main/position_error_time_full.png}
+    \includegraphics[width=0.5\textwidth]{outputs/figures/main/position_error_time_full.png}
     \caption{Zaman serisinde GNSS, Odometri, Klasik EKF, Adaptif EKF ve UKF konum hatalarının değişimi (Tam ölçek görünümü).}
     \label{fig:errors_full}
-\end{figure}
+\end{figure*}
 \clearpage
 
-\begin{figure}[htbp]
+\begin{figure*}[htbp]
     \centering
-    \includegraphics[width=0.2\linewidth]{outputs/figures/main/position_error_time_zoomed_ekf_aekf.png}
+    \includegraphics[width=0.5\textwidth]{outputs/figures/main/position_error_time_zoomed_ekf_aekf.png}
     \caption{Zaman serisinde Klasik EKF ve Adaptif EKF konum hatalarının 0--1 m aralığında yakınlaştırılmış karşılaştırması.}
     \label{fig:errors_zoomed_ekf_aekf}
-\end{figure}
+\end{figure*}
 \clearpage
 
-\begin{figure}[htbp]
+\begin{figure*}[htbp]
     \centering
-    \includegraphics[width=0.2\linewidth]{outputs/figures/main/covariance_traces.png}
+    \includegraphics[width=0.5\textwidth]{outputs/figures/main/covariance_traces.png}
     \caption{Adaptif EKF ölçüm gürültüsü kovaryanslarının ($R_{gps}$, $R_{odom}$, $R_{lidar}$) zamana bağlı değişimi (Logaritmik ölçek).}
     \label{fig:covariance_traces}
-\end{figure}
+\end{figure*}
 \clearpage
 
-\begin{figure}[htbp]
+\begin{figure*}[htbp]
     \centering
-    \includegraphics[width=0.2\linewidth]{outputs/figures/main/covariance_adaptation_error.png}
+    \includegraphics[width=0.5\textwidth]{outputs/figures/main/covariance_adaptation_error.png}
     \caption{Üst panelde EKF, AEKF ve UKF konum hataları; alt panelde logaritmik ölçekte AEKF ölçüm gürültüsü kovaryanslarının ($R_{gps}$, $R_{odom}$, $R_{lidar}$) zamana bağlı değişimi ve hata-kovaryans korelasyonu.}
     \label{fig:covariance_error}
-\end{figure}
+\end{figure*}
 \clearpage
 
-\begin{figure}[htbp]
+\begin{figure*}[htbp]
     \centering
-    \includegraphics[width=0.2\linewidth]{outputs/figures/main/rmse_boxplot_log.png}
+    \includegraphics[width=0.5\textwidth]{outputs/figures/main/rmse_boxplot_log.png}
     \caption{30 seed Monte Carlo testi sonucunda EKF, AEKF ve UKF konum RMSE dağılımlarını karşılaştıran logaritmik kutu (boxplot) grafiği.}
     \label{fig:boxplot_log}
-\end{figure}
+\end{figure*}
 \clearpage
 
-\begin{figure}[htbp]
+\begin{figure*}[htbp]
     \centering
-    \includegraphics[width=0.2\linewidth]{outputs/figures/rl_stop_training_reward.png}
+    \includegraphics[width=0.5\textwidth]{outputs/figures/rl_stop_training_reward.png}
     \caption{DQN tabanlı durak yaklaşma ajanının 500 bölümlük eğitim süresince elde ettiği toplam bölüm ödülü eğitim eğrisi.}
     \label{fig:rl_reward}
-\end{figure}
+\end{figure*}
 \clearpage
 
-\begin{figure}[htbp]
+\begin{figure*}[htbp]
     \centering
-    \includegraphics[width=0.2\linewidth]{outputs/figures/rl_stop_distance_velocity.png}
+    \includegraphics[width=0.5\textwidth]{outputs/figures/rl_stop_distance_velocity.png}
     \caption{Trained DQN ajanı ile nominal durak yaklaşma senaryosunda (Seed: 42) zaman serisine göre durağa kalan mesafe, boylamsal hız ve seçilen frenleme ivmesi profili.}
     \label{fig:rl_approach}
-\end{figure}
+\end{figure*}
 \clearpage
 
-\begin{figure}[htbp]
+\begin{figure*}[htbp]
     \centering
-    \includegraphics[width=0.2\linewidth]{outputs/figures/rl_vs_rule_based_stop_error.png}
+    \includegraphics[width=0.5\textwidth]{outputs/figures/rl_vs_rule_based_stop_error.png}
     \caption{RL (DQN) ve kural tabanlı durak yaklaşma kontrolcüsünün ortalama durma hatası, maksimum durma hatası ve başarı oranı karşılaştırması.}
     \label{fig:rl_vs_rule_based}
-\end{figure}
+\end{figure*}
 \clearpage
 \section{Ekler (Appendix)}
 \label{sec:appendix}
 
 Bu bölümde, ana metni destekleyen ek karşılaştırma grafikleri, Monte Carlo analizinde ıraksayan (diverjan) seed'lere ait konum hata zaman serileri ve simülasyon animasyonlarından alınan statik canlı ekran görüntüleri sunulmaktadır.
 
-\begin{figure}[htbp]
+\begin{figure*}[htbp]
     \centering
-    \includegraphics[width=0.2\linewidth]{outputs/figures/appendix/position_error_time_zoomed_all.png}
+    \includegraphics[width=0.5\textwidth]{outputs/figures/appendix/position_error_time_zoomed_all.png}
     \caption{Zaman serisinde Klasik EKF, Adaptif EKF ve UKF konum hatalarının 0--1 m aralığında yakınlaştırılmış tüm yöntemler karşılaştırması.}
     \label{fig:errors_zoomed_all}
-\end{figure}
+\end{figure*}
 \clearpage
 
-\begin{figure}[htbp]
+\begin{figure*}[htbp]
     \centering
-    \includegraphics[width=0.2\linewidth]{outputs/figures/appendix/rmse_boxplot_linear.png}
+    \includegraphics[width=0.5\textwidth]{outputs/figures/appendix/rmse_boxplot_linear.png}
     \caption{30 seed Monte Carlo testi sonucunda EKF, AEKF ve UKF konum RMSE dağılımlarını karşılaştıran doğrusal ölçekli kutu (boxplot) grafiği.}
     \label{fig:boxplot_linear}
-\end{figure}
+\end{figure*}
 \clearpage
 
 \subsection{Monte Carlo Klasik EKF Iraksama (Divergence) Analizleri}
 Gürültülü GNSS ve odometri slip etkilerinin birleştiği zorlu tohumlarda (Seed 5, 12, 24) Klasik EKF'nin konum hatası zaman serileri Şekil \ref{fig:outlier_seed_5}, Şekil \ref{fig:outlier_seed_12} ve Şekil \ref{fig:outlier_seed_24} üzerinde sunulmaktadır. Bu seed'lerde Klasik EKF konum hatası sırasıyla 144.64 m, 254.84 m ve 69.70 m RMSE değerlerine ulaşarak ıraksamış, AEKF ve Gated UKF ise konum hatasını nominal sınırlar içinde tutmuştur.
 
-\begin{figure}[htbp]
+\begin{figure*}[htbp]
     \centering
-    \includegraphics[width=0.2\linewidth]{outputs/figures/outlier_seeds/error_time_seed_5.png}
+    \includegraphics[width=0.5\textwidth]{outputs/figures/outlier_seeds/error_time_seed_5.png}
     \caption{Klasik EKF'nin ıraksadığı tohum durumlarında yörünge konum hatası serisi (Seed 5 - RMSE: 144.64 m).}
     \label{fig:outlier_seed_5}
-\end{figure}
+\end{figure*}
 \clearpage
 
-\begin{figure}[htbp]
+\begin{figure*}[htbp]
     \centering
-    \includegraphics[width=0.2\linewidth]{outputs/figures/outlier_seeds/error_time_seed_12.png}
+    \includegraphics[width=0.5\textwidth]{outputs/figures/outlier_seeds/error_time_seed_12.png}
     \caption{Klasik EKF'nin ıraksadığı tohum durumlarında yörünge konum hatası serisi (Seed 12 - RMSE: 254.84 m).}
     \label{fig:outlier_seed_12}
-\end{figure}
+\end{figure*}
 \clearpage
 
-\begin{figure}[htbp]
+\begin{figure*}[htbp]
     \centering
-    \includegraphics[width=0.2\linewidth]{outputs/figures/outlier_seeds/error_time_seed_24.png}
+    \includegraphics[width=0.5\textwidth]{outputs/figures/outlier_seeds/error_time_seed_24.png}
     \caption{Klasik EKF'nin ıraksadığı tohum durumlarında yörünge konum hatası serisi (Seed 24 - RMSE: 69.70 m).}
     \label{fig:outlier_seed_24}
-\end{figure}
+\end{figure*}
 \clearpage
 
 \subsection{Simülasyon Canlı Görünüm Statik Kareleri}
 Simülasyon animasyonlarından elde edilen yüksek çözünürlüklü statik Canlı Görünüm kareleri Şekil \ref{fig:frame_traj} ila \ref{fig:frame_cov} arasında sunulmuştur.
 
-\begin{figure}[htbp]
+\begin{figure*}[htbp]
     \centering
-    \includegraphics[width=0.2\linewidth]{outputs/report_assets/trajectory_frame.png}
+    \includegraphics[width=0.5\textwidth]{outputs/report_assets/trajectory_frame.png}
     \caption{Yörünge simülasyonu genel görünüm canlı ekran karesi.}
     \label{fig:frame_traj}
-\end{figure}
+\end{figure*}
 \clearpage
 
-\begin{figure}[htbp]
+\begin{figure*}[htbp]
     \centering
-    \includegraphics[width=0.2\linewidth]{outputs/report_assets/degradation_frame.png}
+    \includegraphics[width=0.5\textwidth]{outputs/report_assets/degradation_frame.png}
     \caption{GNSS bozulma bölgesi (urban canyon) yakın çekim canlı görünüm karesi.}
     \label{fig:frame_deg}
-\end{figure}
+\end{figure*}
 \clearpage
 
-\begin{figure}[htbp]
+\begin{figure*}[htbp]
     \centering
-    \includegraphics[width=0.2\linewidth]{outputs/report_assets/stop_frame.png}
+    \includegraphics[width=0.5\textwidth]{outputs/report_assets/stop_frame.png}
     \caption{Durak yanaşma bölgesi (s: 200 m) yanal sapma hata çizgileri ve bilgi kutusu canlı görünüm karesi.}
     \label{fig:frame_stop}
-\end{figure}
+\end{figure*}
 \clearpage
 
-\begin{figure}[htbp]
+\begin{figure*}[htbp]
     \centering
-    \includegraphics[width=0.2\linewidth]{outputs/report_assets/covariance_frame.png}
+    \includegraphics[width=0.5\textwidth]{outputs/report_assets/covariance_frame.png}
     \caption{Kovaryans adaptasyonu ve konum hatası korelasyonu canlı ekran karesi.}
     \label{fig:frame_cov}
-\end{figure}
+\end{figure*}
 \clearpage
 
 \begin{thebibliography}{16}
