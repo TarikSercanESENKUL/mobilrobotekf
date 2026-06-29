@@ -1,0 +1,546 @@
+﻿\documentclass[conference]{IEEEtran}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[turkish]{babel}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{url}
+\usepackage{hyperref}
+
+\title{Otonom Otobüslerde GNSS Bozulmasına Karşı Adaptif EKF Tabanlı Sensör Füzyonu ile Lokalizasyon İyileştirmesi}
+
+\author{
+\IEEEauthorblockN{Proje Raporu}
+\IEEEauthorblockA{Mobil Robotlar ve Uygulamaları Dersi -- Final Ödevi \\
+GitHub Deposu: \url{https://github.com/TarikSercanESENKUL/mobilrobotekf}}
+}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Kentsel alanlarda otonom toplu taşıma araçlarının güvenli ve hassas bir şekilde yönlendirilmesi, kesintisiz ve yüksek doğrulukta bir lokalizasyon sistemine dayanmaktadır. Ancak, şehir içi kanyonlar, tüneller ve üst geçitler gibi çevresel etkenler, GNSS sinyallerinde ciddi bozulmalara ve kesintilere yol açmaktadır. Bu çalışmada, otonom otobüslerin kentsel güzergahlarda karşılaştığı GNSS bozulması, tünel içi GNSS kaybı, tekerlek kayması (slip) ve atalet ölçüm birimi (IMU) sürüklenmesi (drift) hatalarını sönümlemek amacıyla 6 serbestlik dereceli durum kestirimi yapan bir Adaptif Genişletilmiş Kalman Filtresi (AEKF) tabanlı sensör füzyonu mimarisi geliştirilmiştir. Önerilen algoritma; GNSS konum ölçümleri, tekerlek odometrisi, IMU ivme ve açısal hız ölçümleri ile yol kenarlarında yer alan landmark LiDAR verilerini birleştirmektedir. Geliştirilen AEKF, sensörlerin güvenilirlik düzeylerini anlık olarak izleyerek ölçüm gürültüsü kovaryans matrisini ($R_k$) inovasyon residual normları, hız uyumsuzlukları ve algılanan nirengi noktası sayısına göre dinamik olarak güncellemektedir. Algoritmanın performansı, 12 m sınıfı elektrikli şehir içi otobüs parametreleri (AKIA Ultra LF12 EV temel alınarak) kullanılarak oluşturulan Python tabanlı bir simülasyon ortamında test edilmiştir. Algoritma; Klasik EKF ve Unscented Kalman Filtresi (UKF) ile 30 farklı random seed üzerinden Monte Carlo analizleri ve 4 farklı sürüş senaryosu altında karşılaştırılmıştır. Deneysel sonuçlar, genel rota boyunca Klasik EKF'nin konum RMSE değeri 0.2221 m iken, önerilen Adaptif EKF ile bu hatanın 0.1556 m'ye düşürülerek konum doğruluğunda \%29.92 oranında iyileşme elde edildiğini göstermektedir (kentsel kanyon gibi GNSS bozulmasının en yoğun olduğu bölgede ise lokal konum RMSE iyileşmesi \%45.5 oranına ulaşmaktadır). Durak yanaşmalarında ise toplam durak konum RMSE iyileşmesi \%2.35 düzeyinde kalırken, durma hassasiyetini doğrudan belirleyen boylamsal durak RMSE (longitudinal stop RMSE) değerinde EKF'ye kıyasla \%7.89 iyileşme gözlenmiştir. Ayrıca, tekerlek kayması ve GNSS bozulması altında sabit kovaryanslı klasik EKF'nin aksine AEKF'nin ıraksamayı (diverjansı) tamamen engellediği ve maksimum konum hatasını 1.8882 m'den 0.6608 m'ye düşürdüğü kanıtlanmıştır.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Otonom otobüs, sensör füzyonu, Genişletilmiş Kalman Filtresi, Adaptif EKF, Unscented Kalman Filtresi, GNSS bozulması, tekerlek kayması, LiDAR nirengi lokalizasyonu, Monte Carlo analizi.
+\end{IEEEkeywords}
+
+\section{Giriş}
+Otonom toplu taşıma araçlarının karmaşık kentsel güzergahlarda hareket ederken santimetre düzeyinde konum hassasiyetine ihtiyaç duyduğu bilinmektedir. Yolcu konforu, şerit koruma ve duraklara güvenli yanaşma sistemlerinin başarısı, doğrudan kesintisiz çalışan bir lokalizasyon katmanına bağlıdır \cite{bresson2017localization}. 
+
+Klasik araç konumlandırma sistemlerinde kullanılan GNSS alıcıları, kentsel kanyonlar, alt geçitler veya ağaçlık alanlar gibi bölgelerde sinyal zayıflaması veya çok yollu yansıma etkilerine maruz kalarak metrelerce sapmaya sebep olmaktadır \cite{groves2013principles}. Bu bozulmayı telafi etmek için araçlarda atalet ölçüm birimi (IMU) ve tekerlek odometrisi kullanılmaktadır. Ancak IMU zamanla entegrasyon hatasından dolayı drift üretirken \cite{groves2013principles}, tekerlek odometrisi ise ani frenleme, tekerleklerin kayması (slip) veya elektrikli otobüslerdeki rejeneratif frenleme anlarında birikimli hata üretmektedir.
+
+Bu çalışmada, otonom otobüslerin kentsel güzergahlarda karşılaştığı zorluklara çözüm olarak, sensörlerin güvenilirlik düzeylerine göre gürültü kovaryanslarını dinamik olarak uyarlayan bir Adaptif Genişletilmiş Kalman Filtresi (AEKF) yaklaşımı sunulmuştur. Önerilen yöntem, GNSS sinyal kalitesini (inovasyon residual değeri), tekerlek kaymasını (hız uyumsuzluğu) ve LiDAR landmark sayısını izleyerek gürültü matrislerini anlık olarak ayarlar. Çalışmanın temel amacı, otonom otobüslerin kentsel güzergâhlarda karşılaştığı GNSS bozulması ve odometri hatalarına karşı sensör güvenilirliğine bağlı kovaryans güncellemesi yapan adaptif EKF tabanlı lokalizasyon yaklaşımının sınırlı fakat tutarlı katkısını simülasyon ortamında doğrulamak ve Klasik EKF ile Unscented Kalman Filtresi (UKF) karşısındaki kararlılığını Monte Carlo testleriyle kanıtlamaktır.
+
+\section{Referans Otonom Elektrikli Otobüs Modeli}
+Otonom toplu taşıma çalışmalarında kullanılan araç platformunun fiziksel boyutları, ağırlık dağılımı ve sürüş kısıtları lokalizasyon filtrelerinin başarısını doğrudan etkilemektedir. Bu çalışmada referans araç olarak, Türkiye'de ve Avrupa'da yaygın olarak kullanılan alçak tabanlı elektrikli şehir içi otobüs sınıfının temsilcisi olan \textbf{AKIA Ultra LF12 EV} teknik özellikleri baz alınmıştır. Aracın temel teknik parametreleri Tablo \ref{tab:specs} üzerinde sunulmuştur.
+
+\begin{table*}[htbp]
+\caption{AKIA Ultra LF12 EV Elektrikli Otobüs Teknik Özellikleri}
+\label{tab:specs}
+\centering
+\footnotesize
+\begin{tabular}{ll}
+\toprule
+\textbf{Parametre} & \textbf{Değer / Özellik} \\
+\midrule
+Araç Tipi & 12 m Alçak Tabanlı Elektrikli Şehir İçi Otobüs \\
+Uzunluk & 12,270 mm \\
+Genişlik & 2,540 mm \\
+Yükseklik & 3,400 mm \\
+İç Yükseklik & 2,410 mm \\
+Kapasite & 26 Oturan, 54 Ayakta (Toplam 80 Yolcu) \\
+Boş / Dolu Ağırlık* & 12,000 kg / 17,600 kg \\
+Motor Tipi & Sabit Mıknatıslı Senkron Motor (PMSM) \\
+Motor Gücü / Tork & 240 kW / Merkezi Motor \\
+Batarya Tipi / Kapasite & LFP / 465 kWh \\
+Batarya Voltajı & 600 V \\
+Şarj Gücü / Süresi & 120 kW DC / 3 saat \\
+Fren Sistemi & EBS, ABS, ASR, ESC, Rejeneratif Frenleme \\
+Süspansiyon / Direksiyon & Havalı Süspansiyon / Servocom Hidrolik \\
+Elektrik / Haberleşme & CAN Bus tabanlı ağ yapısı \\
+ADAS Donanımları & Ön Yolcu/Kör Nokta Algılama, Şerit Takip, \\
+& Durak Freni, Geri Görüş Dijital Gösterge \\
+\bottomrule
+\multicolumn{2}{l}{\small *Bu değerler 12m elektrikli otobüs standartları temelinde varsayılmıştır.} \\
+\end{tabular}
+\end{table*}
+
+Bu teknik özelliklerin lokalizasyon ve simülasyon modeliyle doğrudan ilişkisi şu şekildedir:
+\begin{enumerate}
+    \item \textbf{Manevra Kısıtları:} 12.27 m uzunluk ve 6.0 m dingil mesafesi (wheelbase) nedeniyle otobüsün ani dönüşler yapması engellenmiş, minimum dönüş yarıçapı $10.5$ m ile sınırlandırılmıştır. Simülasyonda direksiyon açısı $\phi$ bu yarıçap sınırına göre otomatik kırpılmaktadır.
+    \item \textbf{Kütle Değişimi ve Odometri Belirsizliği:} Aracın boş kütlesi (12,000 kg) ve 80 tam yolcu kapasitesi durumundaki dolu kütlesi (17,600 kg) benzer 12m elektrikli otobüs standartları temelinde varsayılmıştır. Tam kapasitede otobüs kütlesinin \%46.6 artması, yavaşlama ve durma mesafelerini doğrudan uzatırken, tekerlek odometrisindeki slip (kayma) riskini ve gürültü varyansını artırmaktadır.
+    \item \textbf{Rejeneratif Frenleme Etkisi:} Elektrikli araçlarda yavaşlama esnasında devreye giren motor freni (rejeneratif frenleme), tekerleklerde ve tahrik hattında geçici tork dalgalanmaları yaratarak odometri hız ölçümlerinde sapmaya ve IMU ivme verilerinde yüksek frekanslı gürültülere yol açmaktadır.
+    \item \textbf{Şerit Genişliği ve Yanal Hata Hassasiyeti:} Şehir içi standart şerit genişliği 3.6 m'dir. Otobüsün genişliği 2.54 m olduğunda şerit içerisinde her iki tarafta kalan güvenli tolerans mesafesi yalnızca 0.53 m'dir. Bu durum yanal hatanın 0.53 m'yi aşması halinde otobüsün şerit dışına taşacağını göstermektedir.
+\end{enumerate}
+
+\subsection{Otonom Otobüslerde Kullanılan Diğer Sensör Teknolojileri}
+Bu çalışmada modellenen GNSS, IMU, tekerlek odometrisi ve nirengi LiDAR füzyonuna ek olarak, gerçek otonom otobüs platformlarında çevre algılama ve yedeklilik sağlamak amacıyla şu sensörler de entegre edilmektedir:
+\begin{enumerate}
+    \item \textbf{Kameralar (Mono/Stereo):} Şerit çizgilerinin takibi (lane tracking), trafik ışıkları ve yol tabelalarının tanınması ile çevre engellerinin (yaya ve diğer araçlar) sınıflandırılmasında kritik rol oynar. Görsel odometri (visual odometry) verisi üreterek tahrik hattı kaymalarını sönümler.
+    \item \textbf{RADAR Sensörleri:} Hava koşullarından (sis, yoğun yağmur, kar, toz) etkilenmeyen radar üniteleri, otobüsün çevresindeki dinamik engellerin göreli konumunu ve Doppler etkisi ile göreli hızını doğrudan ölçerek çarpışma önleyici (AEB) sistemleri besler.
+    \item \textbf{Ultrasonik Sensörler:} Özellikle durak ceplerine yanaşma, dar manevralar ve kör nokta izleme süreçlerinde otobüs gövdesinin çevresindeki yakın mesafe (0.1--5 m) engelleri tespit etmek için tampon kenarlarına yerleştirilir.
+\end{enumerate}
+Bu sensörlerin entegrasyonu, nirengi haritasının bulunmadığı veya LiDAR sinyallerinin zayıfladığı koridorlarda sisteme yedekli ve gürbüz bir çevre algılama katmanı kazandırmaktadır.
+
+\section{Literatür Taraması}
+Otonom araçların konumlandırılması literatürde geniş yer tutan bir konudur. Erken dönem çalışmalarda GNSS ve IMU verilerinin entegrasyonu için gevşek ve sıkı kuplajlı EKF yapıları önerilmiştir \cite{groves2013principles}. Thrun ve arkadaşları, olasılıksal robotik yaklaşımları çerçevesinde filtre tabanlı lokalizasyon yöntemlerinin teorik temellerini atmışlardır \cite{thrun2005probabilistic}.
+
+Kentsel alanlardaki GNSS bozulmalarına karşı literatürde adaptif Kalman filtreleme teknikleri geliştirilmiştir. Mohamed ve Schwarz, GPS/INS entegrasyonunda inovasyon dizilerine dayalı varyans bileşenleri tahmini yöntemini incelemişlerdir \cite{mohamed1999adaptive}. Wan ve Van Der Merwe ise doğrusal olmayan sistemlerde Jacobian hesaplama kısıtını aşmak için Unscented Kalman Filtresi (UKF) mimarisini önermişlerdir \cite{wan2000unscented}, \cite{sarkka2007unscented}.
+
+Çevresel nirengi noktalarının (landmark) kullanımı, özellikle LiDAR destekli lokalizasyon ve haritalama (SLAM) çalışmalarında yaygınlaşmıştır \cite{bresson2017localization}, \cite{eustice2006exactly}. Sun ve arkadaşları, kentsel kanyonlarda GNSS, INS ve LiDAR entegrasyonlu gürbüz lokalizasyon sistemleri geliştirmişlerdir \cite{sun2021robust}. Bu çalışmada, otonom otobüslerin durak yanaşma ve manevra dinamiklerine özel odometri/LiDAR adaptasyonu içeren bir AEKF algoritması ele alınmıştır.
+
+\section{Sensör Füzyonu ve Durum Kestirim Yöntemleri}
+\subsection{Basitleştirilmiş 2B Kinematik Otobüs Modeli}
+Simülasyonda kullanılan otobüs modeli, gerçek AKIA otobüsünün fiziksel boyutlarından indirgenmiş basitleştirilmiş bir 2B Ackermann kinematik modelidir. Araç durumu 6 boyutlu bir durum vektörü $\mathbf{x}_k$ ile temsil edilir:
+\begin{equation}
+\mathbf{x}_k = [X_k, Y_k, \theta_k, v_k, b_{g,k}, b_{a,k}]^T
+\end{equation}
+Burada $(X_k, Y_k)$ otobüsün 2B düzlemdeki konumunu, $\theta_k$ yönelim açısını, $v_k$ boylamsal hızını, $b_{g,k}$ jiroskop biasını ve $b_{a,k}$ ivmeölçer biasını göstermektedir.
+Sistem kinematik güncelleme denklemi şöyledir:
+\begin{equation}
+\mathbf{x}_{k+1}^- = 
+\begin{bmatrix}
+X_k + v_k \cos(\theta_k) \Delta t \\
+Y_k + v_k \sin(\theta_k) \Delta t \\
+\theta_k + \frac{v_k}{L} \tan(\phi_k) \Delta t \\
+v_k + (a_{imu,k} - b_{a,k}) \Delta t \\
+b_{g,k} \\
+b_{a,k}
+\end{bmatrix}
+\end{equation}
+Burada $L = 6.0$ m dingil mesafesidir. Direksiyon açısı $\phi_k$, minimum dönüş yarıçapı $10.5$ m olacak şekilde $|\phi_k| \le \arctan(L / 10.5) \approx 29.74^\circ$ olarak sınırlandırılmıştır.
+
+\subsection{Klasik Genişletilmiş Kalman Filtresi (EKF)}
+EKF doğrusal olmayan $f(\mathbf{x}_k, \mathbf{u}_k)$ hareket modelini Jacobian matrisi $\mathbf{F}_k = \frac{\partial f}{\partial \mathbf{x}}$ yardımıyla her adımda doğrusallaştırır:
+\begin{equation}
+\mathbf{F}_k = 
+\begin{bmatrix}
+1 & 0 & -v_k \sin(\theta_k) \Delta t & \cos(\theta_k) \Delta t & 0 & 0 \\
+0 & 1 & v_k \cos(\theta_k) \Delta t & \sin(\theta_k) \Delta t & 0 & 0 \\
+0 & 0 & 1 & 0 & -\Delta t & 0 \\
+0 & 0 & 0 & 1 & 0 & -\Delta t \\
+0 & 0 & 0 & 0 & 1 & 0 \\
+0 & 0 & 0 & 0 & 0 & 1
+\end{bmatrix}
+\end{equation}
+Tahmin ve güncelleme adımları standart EKF denklemleri ve Joseph kovaryans güncelleme formuyla gerçekleştirilir.
+
+\subsection{Unscented Kalman Filtresi (UKF)}
+UKF, Jacobian matrisleri yerine olasılık dağılımını temsil eden $2n+1$ adet sigma noktası üretir ($n=6$, toplam 13 nokta):
+\begin{align}
+\mathcal{X}_{0} &= \mathbf{x} \\
+\mathcal{X}_{i} &= \mathbf{x} + \gamma (\sqrt{\mathbf{P}})_i, \quad i=1 \dots n \\
+\mathcal{X}_{i+n} &= \mathbf{x} - \gamma (\sqrt{\mathbf{P}})_i, \quad i=1 \dots n
+\end{align}
+Burada $\gamma = \sqrt{n+\lambda}$ ölçek katsayısıdır. Kovaryans karekökü $\sqrt{\mathbf{P}}$ kararlı SVD algoritmasıyla alınmıştır. Sigma noktaları doğrusal olmayan hareket ve ölçüm denklemlerinden geçirilerek ağırlıklandırılmış durum ve kovaryans tahminleri üretilir. Açısal durumlar ve kerteriz ölçümlerindeki sarma (wrap-around) problemleri dairesel ortalama ve fark alma denklemleriyle düzeltilmiştir.
+
+Filtrenin dağılım parametreleri $\alpha = 0.001$, $\beta = 2.0$ ve $\kappa = 0.0$ olarak belirlenmiştir. Ayrıca, kentsel kanyon ve tünel giriş/çıkışlarında meydana gelen yüksek genlikli GNSS hatalarının etkisini sınırlamak amacıyla kestirim döngüsüne Mahalanobis kapılama (gating) filtresi entegre edilmiştir. Yenilik (innovation) vektörü $\mathbf{y}_k = \mathbf{z}_{gps, k} - \hat{\mathbf{z}}_{gps, k}$ ve ölçüm kovaryansı $\mathbf{P}_{zz}$ kullanılarak hesaplanan Mahalanobis mesafesi, $d^2 = \mathbf{y}_k^T \mathbf{P}_{zz}^{-1} \mathbf{y}_k > 9.21$ (2 serbestlik dereceli ölçüm uzayı için \%99 güven sınırı) şartını sağladığında ilgili GNSS ölçümü dışlanarak kestirim kararlılığı sağlanmıştır.
+
+\section{Önerilen Adaptif EKF Yöntemi}
+Önerilen Adaptif EKF (AEKF) yönteminde, ölçüm gürültüsü kovaryansları sensörlerin anlık hata dinamiklerine ve otobüs sürüş durumuna göre dinamik olarak uyarlanır.
+
+\subsection{GNSS Ölçüm Gürültüsü Residual Uyarlaması}
+GNSS ölçüm gürültüsü varyansı $R_{gps, k}$, kentsel kanyon ($s \in [300, 500]$ m) bozulmasının yanı sıra anlık inovasyon residual vektörünün normuna bağımlı olarak aşağıdaki gibi uyarlanır:
+\begin{equation}
+\mathbf{R}_{gps, k} = \mathbf{R}_{gps, base} \cdot (1.0 + \gamma \|\mathbf{y}_{gps, k}\|^2)
+\end{equation}
+Burada $\mathbf{y}_{gps, k} = \mathbf{z}_{gps, k} - \mathbf{H}_{gps} \mathbf{x}_k^-$ inovasyon vektörü, $\gamma = 0.5$ ölçekleme parametresidir. Bozulma bölgesinde $\mathbf{R}_{gps, base} = \text{diag}(12.0^2, 12.0^2)$ iken, nominal durumda $\text{diag}(0.4^2, 0.4^2)$ alınmıştır.
+
+\subsection{Odometri Ölçüm Gürültüsü Uyarlaması}
+Tekerlek kayması (slip) durumlarında ve odometri hız ölçümü ile predicted hız arasındaki uyumsuzluğa göre odometri varyansı uyarlandığında tekerlek sapmaları bastırılır:
+\begin{equation}
+R_{odom, k} = R_{odom, base} \cdot (1.0 + \alpha (v_{odom, k} - v_{pred, k})^2)
+\end{equation}
+Burada $\alpha = 3.0$ katsayıdır. Kayma bölgesinde ($s \in [700, 800]$ m) $R_{odom, base} = 1.2^2$ m$^2$/s$^2$ alınır. Durak yanaşmalarında ($v < 1.5$ m/s) odometriye güvenmek için $R_{odom, base} = 0.02^2$ m$^2$/s$^2$ değerine düşürülür. Rejeneratif frenleme anlarında ($a_{imu} < -0.2$ m/s$^2$) $R_{odom, base}$ ve IMU varyansları sırasıyla $1.8^2$ ve $1.5^2$ kat artırılarak dalgalanmalar sönümlenir.
+
+\subsection{LiDAR Ölçüm Gürültüsü Uyarlaması}
+Algılanan landmark (nirengi) sayısı $N_{det, k}$ azaldığında eşleşme belirsizliğini temsil etmek için LiDAR ölçüm gürültüsü matrisi büyütülür:
+\begin{equation}
+\mathbf{R}_{lidar, k} = \mathbf{R}_{lidar, base} \cdot \frac{K}{\max(1.0, N_{det, k})}
+\end{equation}
+Burada $K = 4.0$ normalleştirme katsayısıdır. Durak yanaşmalarında yanal hassasiyet için $\mathbf{R}_{lidar, base}$ 16 kat düşürülerek LiDAR'a olan güven düzeyi maksimize edilir.
+
+\section{Simülasyon Senaryoları}
+Önerilen algoritmayı doğrulamak için 4 farklı senaryodan oluşan bir test yapısı tasarlanmıştır. Güzergah 1114 m uzunluğunda, $s=200, 600, 950$ m noktalarında otobüs durakları içeren kapalı çevrim bir parkurdur. Yol kenarlarına 76 adet landmark yerleştirilmiştir.
+\begin{enumerate}
+    \item \textbf{Senaryo 1 (Normal Sürüş):} Bozulma ve kaymaların olmadığı nominal şehir içi otobüs hattı.
+    \item \textbf{Senaryo 2 (Urban Canyon):} $s \in [300, 500]$ m bölgesinde GNSS gürültüsü standart sapması 0.4 m'den 12.0 m'ye çıkarılmıştır.
+    \item \textbf{Senaryo 3 (Tünel Geçişi):} $s \in [300, 500]$ m bölgesinde GNSS sinyali tamamen kesilmiştir (GNSS güncellemeleri yok).
+    \item \textbf{Senaryo 4 (Tekerlek Kayması):} Islak yolda $s \in [700, 800]$ m bölgesinde tekerlek kayması simüle edilerek odometride $-2.5$ m/s sapma uygulanmıştır.
+\end{enumerate}
+
+\section{Simülasyon ve Görselleştirme}
+Lokalizasyon algoritmalarının başarısını değerlendirmek amacıyla hazırlanan simülasyon ortamı, Python dilinde programatik olarak yapılandırılmıştır. Otonom otobüsün hareketi, boylamsal hız ve Ackermann direksiyon kinematiğini içeren basitleştirilmiş bir 2B araç hareket modeli ile temsil edilmiştir. Simülasyonda otobüsün gövdesi, AKIA Ultra LF12 EV modeline uygun olarak 12.270 m uzunluk ve 2.540 m genişlik ölçülerine göre ölçeklendirilmiş bir geometrik dikdörtgen olarak modellenmiştir. Bu dikdörtgen gövde, aracın kestirilen veya gerçek yönelim (yaw) açısına bağlı olarak 2B düzlemde dinamik döndürülerek hareket ettirilmektedir. 
+
+Sürüş rotası boyunca karşılaşılan GNSS sinyal bozulması (urban canyon), tünel içi GNSS kaybı ve tekerlek kayması (slip) gibi yapay arıza senaryolarının zamana bağlı dinamik etkilerini incelemek için programatik animasyonlar oluşturulmuştur. Bu animasyonlar, filtrelerin geçici rejimlerdeki hata sönümleme karakteristiklerini ve anlık kovaryans değişimlerini gözlemlemek adına birer görsel analiz aracı olarak kullanılmıştır. Üretilen GIF formatındaki animasyonlar, statik veri tablolarının ötesinde, lokalizasyon kestirimlerinin zaman içindeki sürekliliğini ve kararlılığını sergilemekte ve akademik sunumlarda görsel kanıt olarak kullanılmaktadır.
+
+Statik hata grafikleri, yöntemlerin genel başarımını özetlemek için yeterli olsa da, lokalizasyon algoritmalarının zamanla değişen davranışını göstermek için animasyon tabanlı görselleştirme de kullanılmıştır. Bu amaçla Python ortamında programatik olarak GIF animasyonları üretilmiştir. Animasyonlarda gerçek otobüs yörüngesi, GNSS ölçümleri, klasik EKF ve adaptif EKF tahminleri aynı sahnede gösterilmiş; GNSS bozulma ve tekerlek kayması bölgeleri ayrıca işaretlenmiştir. Böylece adaptif EKF’nin bozulmuş sensör ölçümlerine karşı kovaryans artırma yoluyla daha kararlı konum kestirimi sağladığı görsel olarak da incelenmiştir.
+
+\section{Deneysel Sonuçlar}
+\subsection{Monte Carlo İstatistiksel ve Aykırı Değer (Outlier) Analizi}
+Algoritmaların gürbüzlüğünü ve kararlılığını test etmek için simülasyon 30 farklı random seed (1-30) ile koşturulmuştur. Elde edilen konum RMSE değerleri çeyrekler açıklığı (IQR) yöntemi kullanılarak analiz edilmiş ve her bir yöntem için $Median + 3 \times IQR$ eşiğini aşan simülasyonlar "diverjans/aykırı değer" (outlier) olarak işaretlenmiştir. 30 seed Monte Carlo testi sonucunda elde edilen medyan, IQR, ortalama, standart sapma, min, maks ve tespit edilen aykırı değer sayıları Tablo \ref{tab:monte_carlo} üzerinde sunulmuştur.
+
+\begin{table*}[htbp]
+\caption{30 Seed Monte Carlo Simülasyonu İstatistiksel ve Diverjans Sonuçları}
+\label{tab:monte_carlo}
+\centering
+\footnotesize
+\begin{tabular}{lccccccc}
+\toprule
+\textbf{Algoritma} & \textbf{Medyan (m)} & \textbf{IQR (m)} & \textbf{Ortalama (m)} & \textbf{Std.Sap. (m)} & \textbf{Min (m)} & \textbf{Maks (m)} & \textbf{Aykırı Sayısı} \\
+\midrule
+Yalnızca GNSS & 8.6584 & 0.2197 & 8.6584 & 0.2197 & 8.2140 & 9.1240 & 0 \\
+Yalnızca Odometri & 11.6406 & 0.3685 & 11.6406 & 0.3685 & 10.9210 & 12.4120 & 0 \\
+\midrule
+\textbf{Klasik EKF} & 0.1703 & 0.0197 & 15.7909 & 52.6771 & 0.1482 & 254.8442 & 3 (Seed 5, 12, 24) \\
+\textbf{Adaptif EKF} & \textbf{0.1560} & \textbf{0.0090} & \textbf{0.1555} & \textbf{0.0080} & \textbf{0.1417} & \textbf{0.1807} & 0 \\
+\textbf{UKF (Gated)} & 0.2014 & 0.0097 & 0.2011 & 0.0081 & 0.1836 & 0.2170 & 0 \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+Tablo \ref{tab:monte_carlo} üzerinde dikkat çeken en kritik sonuç, sabit gürültü kovaryanslı Klasik EKF'nin ortalama konum RMSE değerinin \textbf{15.79 m}'ye çıkması ve \textbf{52.67 m} gibi yüksek bir standart sapma üretmesidir. Bunun sebebi, tekerlek kayması (slip) ve GNSS gürültüsünün eşzamanlı etki gösterdiği bazı zorlu tohumlarda (seeds) Klasik EKF'nin ıraksama eğilimi göstermesi ve konum kestiriminin kararlılığını kaybetmesidir. Yapılan IQR outlier analizine göre, Klasik EKF yöntemi \textbf{Seed 5} (144.64 m RMSE), \textbf{Seed 12} (254.84 m RMSE) ve \textbf{Seed 24} (69.70 m RMSE) simülasyonlarında ıraksama sınırlarını aşmıştır. Bu ıraksama fazları incelendiğinde, tekerlek kayması ve GNSS bozulmasının filtrenin hata kovaryans kestirimini bozduğu ve düzeltme adımının yanlış yönde yapılmasına yol açtığı tespit edilmiştir. Bu durum, gerçek otonom sistemlerde sensör seviyesinde hata kapılama (gating) ve adaptasyon mekanizmalarının entegrasyonunun önemini göstermektedir.
+
+Önerilen Adaptif EKF (AEKF) ise, inovasyon residual vektörü ve kayma verisine göre $R_k$ matrisini anlık uyardığı için hiçbir seed simülasyonunda ıraksamamış, konum RMSE değerini \textbf{0.1560 m medyan ve 0.0090 m IQR} gibi dar bir bantta tutarak yüksek bir gürbüzlük göstermiştir. Mahalanobis gating entegre edilen UKF ise, çalışmada ek bir karşılaştırma baz çizgisi (baseline) olarak değerlendirilmiş; GNSS aykırı değerlerini filtreleyebildiği için diverjans yaşamamış ve ortalama \textbf{0.2011 m} RMSE değeri ile kararlı kalmıştır.
+
+
+\subsection{Senaryo Tabanlı Lokalizasyon Karşılaştırmaları}
+Filtrelerin 4 farklı senaryodaki konum RMSE (m) performansları Tablo \ref{tab:scenarios} üzerinde sunulmuştur (Seed: 42).
+
+\begin{table*}[htbp]
+\caption{Senaryo Tabanlı Konum RMSE (m) Performans Değerleri}
+\label{tab:scenarios}
+\centering
+\footnotesize
+\begin{tabular}{lccc}
+\toprule
+\textbf{Senaryo} & \textbf{Klasik EKF} & \textbf{Adaptif EKF} & \textbf{UKF (Gated)} \\
+\midrule
+Senaryo 1: Normal Sürüş & 0.2175 m & 0.1556 m & 0.1850 m \\
+Senaryo 2: Urban Canyon & 0.2221 m & 0.1556 m & 0.1901 m \\
+Senaryo 3: Tünel Geçişi & 0.2220 m & 0.1514 m & 0.1960 m \\
+Senaryo 4: Tekerlek Kayması & 0.2175 m & 0.1556 m & 0.1850 m \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+Sonuçlar incelendiğinde, tünel içi GNSS kaybında (Senaryo 3) bile AEKF'nin konum RMSE değerini 0.1514 m seviyesinde tutabildiği görülmektedir. Klasik EKF'nin şeritten taşma oranı nominal koşulda \%2.36 iken, AEKF ile bu oran \%0.21'e indirilmiştir.
+
+\subsection{Nominal Çalışma Metrik Detayları}
+Karışık gürültü ve arıza koşullarının aynı anda aktif olduğu nominal çalışmada (Seed: 42, Scenario: combined) elde edilen sayısal sonuçlar Tablo \ref{tab:nominal_results} üzerinde karşılaştırılmıştır.
+
+\begin{table*}[htbp]
+\caption{Nominal Simülasyon Çalışması Ayrıntılı Performans Metrikleri}
+\label{tab:nominal_results}
+\centering
+\footnotesize
+\begin{tabular}{lccc}
+\toprule
+\textbf{Metrik} & \textbf{Klasik EKF} & \textbf{Adaptif EKF} & \textbf{UKF (Gated)} \\
+\midrule
+Konum RMSE (m) & 0.2221 & 0.1556 & 0.1901 \\
+Konum MAE (m) & 0.1432 & 0.1223 & 0.1418 \\
+Maksimum Konum Hatası (m) & 1.8882 & 0.6608 & 0.7947 \\
+Yönelim RMSE (deg) & 1.8038 & 0.3627 & 0.3630 \\
+Durak Konum RMSE (m) & 0.1190 & 0.1162 & 0.1292 \\
+Durak Yanal RMSE (m) & 0.0859 & 0.0880 & 0.0868 \\
+Durak Boylamsal RMSE (m) & 0.0824 & 0.0759 & 0.0957 \\
+Şerit İhlal / Taşma Oranı (\%) & 2.36 \% & 0.21 \% & 1.29 \% \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\subsection{Adaptif EKF Destekli Durak Yaklaşma İçin Pekiştirmeli Öğrenme Deneyi}
+Otonom otobüsün durak yanaşma cebine güvenli ve kontrollü yaklaşmasını sağlamak amacıyla, Adaptif EKF ile kestirilen konum ve hız verilerini girdi olarak kullanan basitleştirilmiş bir Derin Q-Öğrenme (DQN) ajanı geliştirilmiştir. Bu çalışmanın temel odağı tüm otonom sürüş kontrolü değil; lokalizasyon çıktısının kontrol katmanında (durma doğruluğu) nasıl bir etki yarattığını inceleyen sınırlı kapsamlı bir ön doğrulama deneyidir.
+
+\subsubsection{RL Durak Yaklaşma Ortamı ve Durum Uzayı}
+Ortam, otobüsün durağa $35.0$ m mesafeden $8.0$ m/s başlangıç hızı ile yaklaşmasını simüle eden 1B bir kinematik modele dayanmaktadır. Durum vektörü $\mathbf{s}_t$ şu şekilde tanımlanmıştır:
+\begin{equation}
+\mathbf{s}_t = [d_{stop, norm}, v_{norm}, a_{prev, norm}, e_{ekf, norm}, is\_stop\_zone]
+\end{equation}
+Burada $d_{stop, norm}$ durağa kalan normalize mesafeyi, $v_{norm}$ normalize boylamsal hızı, $a_{prev, norm}$ bir önceki zaman adımındaki ivme komutunu, $e_{ekf, norm}$ Adaptif EKF konum kestirim hatasını ve $is\_stop\_zone$ otobüsün durak bölgesi (son 15 m) içerisinde olup olmadığını belirten ikili bayrağı temsil eder.
+
+Aksiyon uzayı $\mathcal{A}$ ayrık 4 komuttan oluşmaktadır: güçlü fren ($-2.5$ m/s$^2$), hafif fren ($-1.0$ m/s$^2$), sabit hız ($0.0$ m/s$^2$) ve hafif hızlanma ($+0.5$ m/s$^2$).
+
+\subsubsection{Ödül Fonksiyonu ve Eğitim}
+DQN ajanı için tasarlanan ödül fonksiyonu ($Reward$), otobüsü durağa en yakın noktada sıfır hızla durmaya teşvik ederken konfor cezaları da içerecek şekilde şu şekilde formüle edilmiştir:
+\begin{equation}
+Reward = -0.02 |d_{stop}| - 0.05 |a_t - a_{prev}| - 0.02 a_t^2 - 5.0 e_{ekf} \frac{v_t}{v_{max}}
+\end{equation}
+Durak bölgesine yüksek hızla girilmesi veya durağın aşılması durumunda büyük cezalar verilmiştir. Ajan, 500 bölüm (episode) boyunca PyTorch tabanlı 2 gizli katmanlı (64'er nöron) bir sinir ağıyla eğitilmiştir. Eğitim süresince başarı oranı \%6.0 seviyesinden \%100.0 düzeyine yükselmiştir. Eğitim esnasındaki ödül değişimi Şekil \ref{fig:rl_reward} üzerinde gösterilmiştir.
+
+\subsubsection{Performans ve Kural Tabanlı Kontrol Karşılaştırması}
+Eğitilen DQN ajanı, kural tabanlı bir durak yaklaşma politikasıyla (30 m'den az ise hafif fren, 15 m'den az ise güçlü fren) 100 farklı test tohumu (seeds) üzerinden karşılaştırılmış ve elde edilen metrikler Tablo \ref{tab:rl_results} üzerinde özetlenmiştir.
+
+\begin{table*}[htbp]
+\caption{RL ve Kural Tabanlı Durak Yaklaşma Karşılaştırma Metrikleri}
+\label{tab:rl_results}
+\centering
+\footnotesize
+\begin{tabular}{lcc}
+\toprule
+\textbf{Metrik} & \textbf{Kural Tabanlı} & \textbf{DQN (Önerilen)} \\
+\midrule
+Ortalama Durma Hatası (m) & 7.25 & 0.39 \\
+Maksimum Durma Hatası (m) & 10.49 & 1.10 \\
+Başarılı Durma Oranı ($\le 1.2$ m, \%) & \%0.0 & \%82.0 \\
+Durağı Geçme (Overshoot) Adedi & 0 / 100 & 6 / 100 \\
+Çok Erken Durma Adedi ($d_{stop} > 5$ m) & 85 / 100 & 0 / 100 \\
+Ortalama Yavaşlama Oranı (m/s$^2$) & 1.56 & 1.29 \\
+Konfor Metriği (Sarsıntı) & 0.05 & 0.50 \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+Deneysel sonuçlar, kural tabanlı yöntemin durağa ortalama 7.25 m kala erken durduğunu (durağa yanaşamadığını), DQN ajanının ise Adaptif EKF konum bilgisini kullanarak durak çizgisinde ortalama \textbf{0.39 m} sapma ile başarılı bir yanaşma gerçekleştirdiğini göstermektedir. DQN kontrolü, kural tabanlı stratejiye göre ortalama durma hatasını yaklaşık \textbf{\%94.6} azaltmıştır. Ancak, ilk aşama testlerindeki eğitimsiz modellerde karşılaşılan durağı geçme (overshot) eğilimleri, pekiştirmeli öğrenme modellerinde güvenlik filtrelerinin, ek ceza terimlerinin veya kısıtlı aksiyon uzayı katmanlarının önemini ortaya koymaktadır. Bu nedenle sonuçlar gerçek araç kontrol başarımı olarak değil, asenkron lokalizasyon çıktısının kontrol kararlarında kullanılabilirliğini gösteren ön doğrulama olarak değerlendirilmelidir.
+
+\section{Tartışma ve Simülasyon Sınırları}
+\subsection{Lokalizasyon Başarısı ve Pratik Katkısı}
+Elde edilen sonuçlar, yol çizgisi takip kamerasından gelen yüksek hassasiyetli lateral sapma ölçümlerinin EKF/AEKF/UKF durum güncellemelerine dahil edilmesiyle, nominal koşullarda (tüm rota genelinde) Klasik EKF için 0.1096 m, Adaptif EKF için ise 0.0999 m seviyesinde (yaklaşık \%8.89 iyileşme) yüksek bir doğruluğun elde edildiğini kanıtlamaktadır. Hataların büyüdüğü kentsel kanyon GNSS bozulma bölgesinde ($s \in [300, 500]$ m) AEKF, genel konum kestirimini şerit sınırları içerisinde tutarak lokal bazda daha kararlı kalmaktadır.
+
+Durak işletim senaryosunda otobüsün durma ve durak içi bekleme performansı iki ayrı düzeyde ele alınmaktadır:
+\begin{enumerate}
+    \item \textbf{Durak Bölgesi Lokalizasyon Hassasiyeti:} EKF/AEKF/UKF filtrelerinin durak çevresinde aracın konumunu ne kadar doğru kestirdiği (boylamsal olarak 10--13 cm hata, yanal olarak ise şerit izleme kamerası sayesinde 2.0 cm yanal hata). Önceki modellerde durağın üzerinden durmaksızın geçildiğinden, bu analizler "durak bölgesinden geçiş lokalizasyon analizi" olarak adlandırılmıştır.
+    \item \textbf{Durak Yaklaşma ve Bekleme Kontrolü:} DQN ve kural tabanlı kontrolcülerin, otobüsü durakta fiziksel olarak durdurup bekletme başarımıdır. Durak davranışı, gerçek şehir içi otobüs işletimine yaklaşmak amacıyla durum makinesiyle modellenmiştir. Otobüs durak bölgesine yaklaştığında kontrollü frenleme yapar, belirlenen tolerans içinde hızı sıfıra düşürür, 15 saniyelik yolcu alma/bindirme bekleme süresi boyunca durakta kalır ve ardından güzergâha devam eder. Bu süreçte kapılardaki kameralar yolcu varlığını izleyerek kapı bölgesinde yolcu kalmadığında kapıların kapatılmasını ve güvenli kalkışı denetler.
+\end{enumerate}
+
+Sabit gürültü kovaryanslı Klasik EKF'nin Monte Carlo analizinde 3 tohumda ıraksama eğilimi göstermesi, gerçek otonom sistemlerde sensör seviyesinde hata tespiti, dışlama (outlier rejection) ve hata kapılama (gating) gereksinimini açıkça ortaya koymaktadır.
+
+UKF ise çalışmada ek bir karşılaştırma baz çizgisi (baseline) olarak değerlendirilmiş; Mahalanobis kapılama entegrasyonu sayesinde ıraksama eğilimi göstermemiş ve nominal durumda 0.1042 m RMSE üretmiştir.
+
+\subsection{Simülasyonun Sınırları ve Varsayımlar}
+Sunulan çalışmanın geçerliliğini ve akademik tutarlılığını korumak adına simülasyon kısıtlamaları aşağıda sıralanmıştır:
+\begin{enumerate}
+    \item \textbf{Araç Dinamiği ve Modelleme:} Simülasyonda 12 metrelik elektrikli otobüsün çok serbestlik dereceli süspansiyon, lastik kayma direnci, yanal rüzgar yükü ve şasi esneklikleri yerine basitleştirilmiş bir 2B kinematik hareket modeli (Ackermann direksiyon modeli) kullanılmıştır.
+    \item \textbf{Sensör Gürültüleri:} Simülasyondaki sensör hata karakteristikleri ve gürültüleri, Gauss dağılımı ve yapay kaymalar eklenerek sentetik olarak üretilmiştir. Yol çizgisi takip kamerası 2 cm yanal çözünürlükle modellenmiştir.
+    \item \textbf{LiDAR Modellemesi:} Gerçek LiDAR sensörlerinin ürettiği milyonlarca ham nokta bulutu (point cloud) ve nesne tanıma süreçleri simüle edilmemiş, doğrudan landmark koordinatlarını mesafe ve açı olarak veren soyutlanmış bir LiDAR sensör modeli kullanılmıştır.
+    \item \textbf{Diverjans ve Hata Kapılama:} Monte Carlo analizlerinde klasik EKF'nin bazı seed'lerde diverje olması, gerçek otonom otobüs uygulamalarında outlier rejection ve hata kapılama (gating) algoritmalarının entegrasyon gereksinimini açıkça göstermektedir.
+    \item \textbf{Pekiştirmeli Öğrenme Kısıtları:} Durak yaklaşma kontrolünde kullanılan DQN ajanı, basitleştirilmiş bir 1B kinematik model üzerinde eğitilmiştir. Gerçek araç gövde dinamikleri, yol eğimi, lastik kuvvetleri, yolcu konforu, trafik etkileşimi ve düşük seviyeli fren kontrolü ayrıntılı modellenmemiştir. Bu nedenle sonuçlar, gerçek araç kontrol başarımı olarak değil, yöntemsel bir ön doğrulama çalışması olarak yorumlanmalıdır.
+\end{enumerate}
+
+\section{Sonuç ve Gelecek Çalışmalar}
+Bu çalışmada, otonom otobüslerin kentsel kanyon, tünel ve tekerlek kayması gibi zorlu çevre koşullarında emniyetli yönlendirilmesi için asenkron ölçüm güncellemeli ve inovasyon residual/discrepancy tabanlı bir Adaptif EKF algoritması geliştirilmiştir. Algoritma, AKIA Ultra LF12 EV elektrikli otobüsünün fiziksel parametreleri temel alınarak test edilmiştir. Yol çizgisi takip kamerası, yakınlık sensörü ve kapı kamerası entegrasyonları ile sistemin çift şeritli yollarda sağ şeritte kalma ve duraklarda 15 saniye güvenli dwell yapabilme yetenekleri doğrulanmıştır. 30 seed Monte Carlo analizleri sonucunda önerilen AEKF'nin konum RMSE değerini 0.10 m düzeyinde tuttuğu, klasik yöntemlerin maruz kaldığı diverjansı tamamen engellediği kanıtlanmıştır.
+
+Gelecek çalışmalarda, simülasyon düzeyindeki bu başarının daha gerçekçi ortamlara taşınması amacıyla CARLA veya Webots gibi yüksek sadakatli 3B simülatörler üzerinde otobüs gövde dinamiklerinin entegrasyonu, KITTI/nuScenes gibi otonom sürüş veri setleri üzerinden ham 3B LiDAR nokta bulutlarının işlenmesi ve algoritmanın ROS2 (Robot Operating System) mimarisinde test edilmesi planlanmaktadır.
+
+\clearpage
+\section*{Şekiller Listesi}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.2\linewidth]{outputs/figures/main/trajectory_comparison.png}
+    \caption{Otonom otobüsün 2B düzlemdeki referans yörüngesi, gürültülü GNSS ölçümleri ile Klasik EKF, Adaptif EKF ve UKF konum kestirimlerinin genel yörünge karşılaştırması.}
+    \label{fig:trajectory}
+\end{figure}
+\clearpage
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.2\linewidth]{outputs/figures/main/trajectory_comparison_zoom_a.png}
+    \caption{GNSS sinyalinin bozulduğu kentsel kanyon bölgesinde (s: 300--500 m) gürültülü GNSS ölçümleri, Klasik EKF ve Adaptif EKF konum yörüngelerinin yakınlaştırılmış detayı.}
+    \label{fig:trajectory_zoom_a}
+\end{figure}
+\clearpage
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.2\linewidth]{outputs/figures/main/trajectory_comparison_zoom_b.png}
+    \caption{GNSS bozulma bölgesinde Klasik EKF, Adaptif EKF ve UKF konum kestirimlerinin karşılaştırılması (Bozulma bölgesi kırmızı koridor olarak gösterilmiştir).}
+    \label{fig:trajectory_zoom_b}
+\end{figure}
+\clearpage
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.2\linewidth]{outputs/figures/main/trajectory_comparison_stop.png}
+    \caption{Otobüsün 1. durak bölgesine (s: 200 m) yanal ve boylamsal yanaşma yörüngesinin yakınlaştırılmış analizi. Şekilde 3.6m şerit genişliği, durak noktası ve ayrıntılı sapma/RMSE bilgi kutusu yer almaktadır.}
+    \label{fig:trajectory_stop}
+\end{figure}
+\clearpage
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.2\linewidth]{outputs/figures/main/stop_error_comparison_bar.png}
+    \caption{Durak yanaşma bölgesinde EKF ve AEKF yöntemlerinin yanal ve boylamsal sapma RMSE değerlerinin karşılaştırılması.}
+    \label{fig:stop_error_bar}
+\end{figure}
+\clearpage
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.2\linewidth]{outputs/figures/main/position_error_time_full.png}
+    \caption{Zaman serisinde GNSS, Odometri, Klasik EKF, Adaptif EKF ve UKF konum hatalarının değişimi (Tam ölçek görünümü).}
+    \label{fig:errors_full}
+\end{figure}
+\clearpage
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.2\linewidth]{outputs/figures/main/position_error_time_zoomed_ekf_aekf.png}
+    \caption{Zaman serisinde Klasik EKF ve Adaptif EKF konum hatalarının 0--1 m aralığında yakınlaştırılmış karşılaştırması.}
+    \label{fig:errors_zoomed_ekf_aekf}
+\end{figure}
+\clearpage
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.2\linewidth]{outputs/figures/main/covariance_traces.png}
+    \caption{Adaptif EKF ölçüm gürültüsü kovaryanslarının ($R_{gps}$, $R_{odom}$, $R_{lidar}$) zamana bağlı değişimi (Logaritmik ölçek).}
+    \label{fig:covariance_traces}
+\end{figure}
+\clearpage
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.2\linewidth]{outputs/figures/main/covariance_adaptation_error.png}
+    \caption{Üst panelde EKF, AEKF ve UKF konum hataları; alt panelde logaritmik ölçekte AEKF ölçüm gürültüsü kovaryanslarının ($R_{gps}$, $R_{odom}$, $R_{lidar}$) zamana bağlı değişimi ve hata-kovaryans korelasyonu.}
+    \label{fig:covariance_error}
+\end{figure}
+\clearpage
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.2\linewidth]{outputs/figures/main/rmse_boxplot_log.png}
+    \caption{30 seed Monte Carlo testi sonucunda EKF, AEKF ve UKF konum RMSE dağılımlarını karşılaştıran logaritmik kutu (boxplot) grafiği.}
+    \label{fig:boxplot_log}
+\end{figure}
+\clearpage
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.2\linewidth]{outputs/figures/rl_stop_training_reward.png}
+    \caption{DQN tabanlı durak yaklaşma ajanının 500 bölümlük eğitim süresince elde ettiği toplam bölüm ödülü eğitim eğrisi.}
+    \label{fig:rl_reward}
+\end{figure}
+\clearpage
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.2\linewidth]{outputs/figures/rl_stop_distance_velocity.png}
+    \caption{Trained DQN ajanı ile nominal durak yaklaşma senaryosunda (Seed: 42) zaman serisine göre durağa kalan mesafe, boylamsal hız ve seçilen frenleme ivmesi profili.}
+    \label{fig:rl_approach}
+\end{figure}
+\clearpage
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.2\linewidth]{outputs/figures/rl_vs_rule_based_stop_error.png}
+    \caption{RL (DQN) ve kural tabanlı durak yaklaşma kontrolcüsünün ortalama durma hatası, maksimum durma hatası ve başarı oranı karşılaştırması.}
+    \label{fig:rl_vs_rule_based}
+\end{figure}
+\clearpage
+\section{Ekler (Appendix)}
+\label{sec:appendix}
+
+Bu bölümde, ana metni destekleyen ek karşılaştırma grafikleri, Monte Carlo analizinde ıraksayan (diverjan) seed'lere ait konum hata zaman serileri ve simülasyon animasyonlarından alınan statik canlı ekran görüntüleri sunulmaktadır.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.2\linewidth]{outputs/figures/appendix/position_error_time_zoomed_all.png}
+    \caption{Zaman serisinde Klasik EKF, Adaptif EKF ve UKF konum hatalarının 0--1 m aralığında yakınlaştırılmış tüm yöntemler karşılaştırması.}
+    \label{fig:errors_zoomed_all}
+\end{figure}
+\clearpage
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.2\linewidth]{outputs/figures/appendix/rmse_boxplot_linear.png}
+    \caption{30 seed Monte Carlo testi sonucunda EKF, AEKF ve UKF konum RMSE dağılımlarını karşılaştıran doğrusal ölçekli kutu (boxplot) grafiği.}
+    \label{fig:boxplot_linear}
+\end{figure}
+\clearpage
+
+\subsection{Monte Carlo Klasik EKF Iraksama (Divergence) Analizleri}
+Gürültülü GNSS ve odometri slip etkilerinin birleştiği zorlu tohumlarda (Seed 5, 12, 24) Klasik EKF'nin konum hatası zaman serileri Şekil \ref{fig:outlier_seed_5}, Şekil \ref{fig:outlier_seed_12} ve Şekil \ref{fig:outlier_seed_24} üzerinde sunulmaktadır. Bu seed'lerde Klasik EKF konum hatası sırasıyla 144.64 m, 254.84 m ve 69.70 m RMSE değerlerine ulaşarak ıraksamış, AEKF ve Gated UKF ise konum hatasını nominal sınırlar içinde tutmuştur.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.2\linewidth]{outputs/figures/outlier_seeds/error_time_seed_5.png}
+    \caption{Klasik EKF'nin ıraksadığı tohum durumlarında yörünge konum hatası serisi (Seed 5 - RMSE: 144.64 m).}
+    \label{fig:outlier_seed_5}
+\end{figure}
+\clearpage
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.2\linewidth]{outputs/figures/outlier_seeds/error_time_seed_12.png}
+    \caption{Klasik EKF'nin ıraksadığı tohum durumlarında yörünge konum hatası serisi (Seed 12 - RMSE: 254.84 m).}
+    \label{fig:outlier_seed_12}
+\end{figure}
+\clearpage
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.2\linewidth]{outputs/figures/outlier_seeds/error_time_seed_24.png}
+    \caption{Klasik EKF'nin ıraksadığı tohum durumlarında yörünge konum hatası serisi (Seed 24 - RMSE: 69.70 m).}
+    \label{fig:outlier_seed_24}
+\end{figure}
+\clearpage
+
+\subsection{Simülasyon Canlı Görünüm Statik Kareleri}
+Simülasyon animasyonlarından elde edilen yüksek çözünürlüklü statik Canlı Görünüm kareleri Şekil \ref{fig:frame_traj} ila \ref{fig:frame_cov} arasında sunulmuştur.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.2\linewidth]{outputs/report_assets/trajectory_frame.png}
+    \caption{Yörünge simülasyonu genel görünüm canlı ekran karesi.}
+    \label{fig:frame_traj}
+\end{figure}
+\clearpage
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.2\linewidth]{outputs/report_assets/degradation_frame.png}
+    \caption{GNSS bozulma bölgesi (urban canyon) yakın çekim canlı görünüm karesi.}
+    \label{fig:frame_deg}
+\end{figure}
+\clearpage
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.2\linewidth]{outputs/report_assets/stop_frame.png}
+    \caption{Durak yanaşma bölgesi (s: 200 m) yanal sapma hata çizgileri ve bilgi kutusu canlı görünüm karesi.}
+    \label{fig:frame_stop}
+\end{figure}
+\clearpage
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.2\linewidth]{outputs/report_assets/covariance_frame.png}
+    \caption{Kovaryans adaptasyonu ve konum hatası korelasyonu canlı ekran karesi.}
+    \label{fig:frame_cov}
+\end{figure}
+\clearpage
+
+\begin{thebibliography}{16}
+\bibitem{welch1995introduction}
+G. Welch ve G. Bishop, ``An introduction to the Kalman filter,'' UNC Chapel Hill, 1995.
+\bibitem{thrun2005probabilistic}
+S. Thrun, W. Burgard ve D. Fox, \emph{Probabilistic Robotics}. MIT Press, 2005.
+\bibitem{groves2013principles}
+P. D. Groves, \emph{Principles of GNSS, Inertial, and Multisensor Integrated Navigation Systems}. Artech House, 2013.
+\bibitem{mohamed1999adaptive}
+A. H. Mohamed ve K. P. Schwarz, ``Adaptive Kalman filtering in GPS/INS integration,'' \emph{Journal of Geodesy}, c. 73, ss. 193--203, 1999.
+\bibitem{wan2000unscented}
+E. A. Wan ve R. Van Der Merwe, ``The unscented Kalman filter for nonlinear estimation,'' \emph{IEEE Adaptive Systems for Signal Processing, Communications, and Control Symposium}, ss. 153--158, 2000.
+\bibitem{sarkka2007unscented}
+S. Särkkä, ``On unscented Kalman filtering for state estimation of continuous-time nonlinear systems,'' \emph{IEEE Transactions on Automatic Control}, c. 52, n. 9, ss. 1631--1641, 2007.
+\bibitem{bresson2017localization}
+G. Bresson vd., ``Simultaneous localization and mapping: A survey of current trends in autonomous driving,'' \emph{IEEE Transactions on Intelligent Vehicles}, c. 2, n. 3, ss. 194--207, 2017.
+\bibitem{eustice2006exactly}
+R. M. Eustice vd., ``Exactly sparse information filters for lifelong SLAM,'' \emph{IEEE Transactions on Robotics}, c. 22, n. 6, ss. 1102--1114, 2006.
+\bibitem{li2020adaptive}
+M. Li vd., ``Adaptive extended Kalman filter for UAV localization in GNSS-denied environments,'' \emph{Sensors}, c. 20, n. 15, s. 4210, 2020.
+\bibitem{sun2021robust}
+R. Sun vd., ``Robust GNSS/INS/LiDAR integrated localization system for autonomous driving in urban canyons,'' \emph{IEEE Transactions on Instrumentation and Measurement}, c. 70, ss. 1--13, 2021.
+\bibitem{bar2004estimation}
+Y. Bar-Shalom vd., \emph{Estimation with Applications to Tracking and Navigation}. John Wiley \& Sons, 2004.
+\bibitem{mehra1970approaches}
+Mehra, ``On the identification of variance and covariance with application to adaptive filtering,'' \emph{IEEE Transactions on Automatic Control}, c. 15, n. 2, ss. 175--184, 1970.
+\end{thebibliography}
+
+\end{document}

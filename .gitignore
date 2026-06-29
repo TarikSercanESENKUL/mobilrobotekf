@@ -1,0 +1,23 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+*.log
+
+# Ignore local Python virtual environments and cache files
+
+# Ignore model checkpoints and large generated artifacts unless intentionally tracked
+models/*.pt
+models/*.pth
+
+# Keep docs outputs only if they are part of the final submission.
+# docs/*.png
+# docs/plots/
+# docs/test_*.csv
+models/*.zip
+models/*vecnormalize.pkl
