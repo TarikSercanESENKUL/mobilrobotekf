@@ -44,7 +44,7 @@ def run_simulation(seed=42, scenario_name='combined', return_history=False):
     total_time = 140.0
     rg = RouteGenerator(dt=dt)
     
-    time_steps, x_ref, y_ref, theta_ref, v_ref, s_ref, stop_states_ref = rg.generate_trajectory(total_time)
+    time_steps, x_ref, y_ref, theta_ref, v_ref, s_ref, stop_states_ref, tl_states_ref, ped_states_ref = rg.generate_trajectory(total_time)
     N = len(time_steps)
     route_waypoints = np.column_stack((x_ref, y_ref))
     landmarks = generate_landmarks(rg)
@@ -299,6 +299,8 @@ def run_simulation(seed=42, scenario_name='combined', return_history=False):
         'aekf': metrics_aekf,
         'ukf': metrics_ukf,
         'stop_states_ref': stop_states_ref,
+        'tl_states_ref': tl_states_ref,
+        'ped_states_ref': ped_states_ref,
         'passenger_history': passenger_history
     }
     

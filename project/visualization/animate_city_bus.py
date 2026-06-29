@@ -92,7 +92,7 @@ def run_ekf_city_simulation(seed=42, total_time=200.0):
     
     # Rota yolu (gerçek hareket)
     rg = RouteGenerator(dt=0.1)
-    _, _, _, _, _, _, stop_states_ref = rg.generate_trajectory(total_time)
+    _, _, _, _, _, _, stop_states_ref, tl_states_ref, ped_states_ref = rg.generate_trajectory(total_time)
     
     # Durak konumları
     stop_positions_global = {}
@@ -113,34 +113,33 @@ def run_ekf_city_simulation(seed=42, total_time=200.0):
     # Yolcu/Kapı tarihini oluştur
     stop_triggered   = {stop_s: False for stop_s in rg.bus_stops}
     door_close_triggered = {stop_s: False for stop_s in rg.bus_stops}
-    prev_stop_state  = None
-    
-    pax_waiting_hist  = []
+    pax_waiting_hist = []
     pax_boarding_hist = []
-    pax_alighting_hist= []
-    door_state_hist   = []
-    door_pos_hist     = []
-    fov_poly_hist     = []
+    pax_alighting_hist = []
+    door_state_hist = []
+    door_pos_hist = []
+    fov_poly_hist = []
+    
+    prev_stop_state = StopState.CRUISE
     
     for k in range(N):
-        bus_state_k = tuple(true_history[k, :4])
+        bus_state_k = true_history[k]
+        s_k = s_ref_arr[k]
         rg_state = stop_states_ref[k] if k < len(stop_states_ref) else StopState.CRUISE
         
-        # Aktif durağı tespit et
+        # En yakın durağı tespit et
         active_stop_s = None
-        if rg_state in [StopState.DWELL, StopState.BRAKE, StopState.DEPART]:
-            s_mod = s_ref_arr[k] % rg.lap_len
-            for stop_s in rg.bus_stops:
-                if abs(s_mod - stop_s) < 3.0:
+        s_mod = s_k % rg.lap_len
+        min_d = 1e6
+        for stop_s in rg.bus_stops:
+            d = stop_s - s_mod
+            if d < -rg.lap_len / 2: d += rg.lap_len
+            elif d > rg.lap_len / 2: d -= rg.lap_len
+            d = abs(d)
+            if d < 30.0:
+                if d < min_d:
+                    min_d = d
                     active_stop_s = stop_s
-                    break
-            if active_stop_s is None:
-                min_d = float('inf')
-                for stop_s in rg.bus_stops:
-                    d = abs(s_mod - stop_s)
-                    if d < min_d:
-                        min_d = d
-                        active_stop_s = stop_s
         
         # DWELL olayları
         if rg_state == StopState.DWELL and active_stop_s is not None:
@@ -197,6 +196,8 @@ def run_ekf_city_simulation(seed=42, total_time=200.0):
         'aekf':           aekf_history,
         's_ref':          s_ref_arr,
         'stop_states':    stop_states_ref,
+        'tl_states':      tl_states_ref,
+        'ped_states':     ped_states_ref,
         'pax_waiting':    pax_waiting_hist,
         'pax_boarding':   pax_boarding_hist,
         'pax_alighting':  pax_alighting_hist,
@@ -255,6 +256,20 @@ def make_ekf_city_animation(frame_skip=8, output_path=None, seed=42):
                     color='#ff9800', fontsize=7, fontweight='bold',
                     path_effects=[pe.withStroke(linewidth=2, foreground='#0d1117')])
     
+    # Trafik Işığı Direği ve Kutusu (s = 400m -> x = 400.0, y = 0.0)
+    ax_map.plot([400.0, 400.0], [-1.8, -4.5], color='#666666', linewidth=2.0, zorder=6)
+    tl_bulb = patches.Circle((400.0, -4.5), 1.5, facecolor='red', edgecolor='white', linewidth=0.8, zorder=7)
+    ax_map.add_patch(tl_bulb)
+    ax_map.text(400.0, -8.0, 'Sinyal (400m)', color='#ffffff', fontsize=7, ha='center', fontweight='bold',
+                 path_effects=[pe.withStroke(linewidth=2, foreground='#0d1117')])
+                 
+    # Yaya Geçidi Zebra Çizgileri (s = 800m -> x = 157.08, y = 100.0)
+    for offset in [-1.5, -0.9, -0.3, 0.3, 0.9, 1.5]:
+        ax_map.plot([157.08 + offset, 157.08 + offset], [97.0, 103.0], color='#ffffff', linewidth=1.8, alpha=0.4, zorder=1)
+    ped_marker = ax_map.scatter([], [], s=100, c='#ffeb3b', marker='*', edgecolors='black', linewidths=0.8, zorder=10)
+    ax_map.text(157.08, 105.0, 'Yaya Geçidi', color='#ffffff', fontsize=7, ha='center', fontweight='bold',
+                 path_effects=[pe.withStroke(linewidth=2, foreground='#0d1117')])
+
     # Landmarklar
     lm = data['landmarks']
     ax_map.scatter(lm[:, 0], lm[:, 1], color='#444466', marker='+',
@@ -343,9 +358,11 @@ def make_ekf_city_animation(frame_skip=8, output_path=None, seed=42):
         ('GNSS', 0.58), ('Odometri', 0.53), ('LiDAR Aktif', 0.48),
         ('', 0.43),
         ('━━ DURAK SİSTEMİ ━━', 0.40),
-        ('Durak Durumu', 0.35), ('Kapı Ön', 0.30), ('Kapı Arka', 0.25),
-        ('Bekleyen Yolcu', 0.20), ('Binen Yolcu', 0.15), ('İnen Yolcu', 0.10),
-        ('', 0.05),
+        ('Durak Durumu', 0.35), ('Kapı Ön', 0.31), ('Kapı Arka', 0.27),
+        ('Bekleyen Yolcu', 0.23), ('Binen Yolcu', 0.19), ('İnen Yolcu', 0.15),
+        ('', 0.12),
+        ('━━ KENTSEL AKTÖRLER ━━', 0.09),
+        ('Trafik Işığı (400m)', 0.05), ('Yaya Durumu (800m)', 0.01),
     ]
     
     val_texts = {}
@@ -463,6 +480,24 @@ def make_ekf_city_animation(frame_skip=8, output_path=None, seed=42):
                 d_state = door_states.get(door_name, DoorState.CLOSED)
                 circle.set_facecolor(DOOR_COLORS.get(d_state, '#9e9e9e'))
         
+        # ─ Trafik Işığı ve Yaya
+        tl_color = data['tl_states'][k] if k < len(data['tl_states']) else 'green'
+        ped_active = data['ped_states'][k] if k < len(data['ped_states']) else False
+        
+        tl_bulb.set_facecolor(tl_color)
+        
+        if ped_active:
+            # Yaya 65s - 75s arasında karşıdan karşıya geçiyor (y=104 -> y=96)
+            if t <= 67.0:
+                py = 104.0 - 4.0 * (t - 65.0) / 2.0
+            elif t <= 73.0:
+                py = 100.0
+            else:
+                py = 100.0 - 4.0 * (t - 73.0) / 2.0
+            ped_marker.set_offsets([[157.08, py]])
+        else:
+            ped_marker.set_offsets(np.empty((0, 2)))
+
         # ─ Etiketler
         time_label.set_text(f't = {t:.1f}s')
         err_label.set_text(f'EKF: {err_ekf:.3f}m | AEKF: {err_aekf:.3f}m')
@@ -474,6 +509,12 @@ def make_ekf_city_animation(frame_skip=8, output_path=None, seed=42):
         front_door_st = door_states.get('front_door', 'closed')
         rear_door_st  = door_states.get('rear_door', 'closed')
         
+        # Yaya durumu metni
+        if ped_active:
+            ped_status = 'YOL BLOKE!' if 67.0 <= t <= 73.0 else 'YAKLAŞIYOR'
+        else:
+            ped_status = 'SERBEST'
+            
         tv_dict = {
             'T (s)':              f'{t:.1f}',
             'Gerçek Konum':       f'({tx:.1f}, {ty:.1f})',
@@ -490,6 +531,8 @@ def make_ekf_city_animation(frame_skip=8, output_path=None, seed=42):
             'Bekleyen Yolcu':     str(len(w_pts)),
             'Binen Yolcu':        str(len(b_pts)),
             'İnen Yolcu':         str(len(a_pts)),
+            'Trafik Işığı (400m)': tl_color.upper(),
+            'Yaya Durumu (800m)':  ped_status,
         }
         
         door_color_map = {
@@ -512,6 +555,10 @@ def make_ekf_city_animation(frame_skip=8, output_path=None, seed=42):
                 txt_obj.set_color(door_color_map.get(front_door_st, '#ffffff'))
             elif label == 'Kapı Arka':
                 txt_obj.set_color(door_color_map.get(rear_door_st, '#ffffff'))
+            elif label == 'Trafik Işığı (400m)':
+                txt_obj.set_color('#4caf50' if val == 'GREEN' else '#f9a825' if val == 'YELLOW' else '#f44336')
+            elif label == 'Yaya Durumu (800m)':
+                txt_obj.set_color('#f44336' if 'BLOKE' in val else '#f9a825' if 'YAKLAŞ' in val else '#4caf50')
             else:
                 txt_obj.set_color('#ffffff')
         

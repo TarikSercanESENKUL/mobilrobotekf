@@ -67,7 +67,8 @@ class RouteGenerator:
 
     def generate_trajectory(self, total_time=120.0):
         """
-        Zamana bağlı referans durumları [x, y, theta, v], konum s ve durum makinesini üretir.
+        Zamana bağlı referans durumları [x, y, theta, v], konum s, durum makinesini,
+        trafik ışığı durumlarını ve yaya geçiş durumlarını üretir.
         """
         N = int(total_time / self.dt)
         time_steps = np.arange(N) * self.dt
@@ -79,6 +80,8 @@ class RouteGenerator:
         v_ref = np.zeros(N)
         s_ref = np.zeros(N)
         stop_states_ref = []
+        tl_states_ref = []
+        ped_states_ref = []
         
         # Otobüs hareket durumu kontrolü
         s = 0.0
@@ -91,6 +94,37 @@ class RouteGenerator:
         stop_completed = {stop: False for stop in self.bus_stops}
         
         for k in range(N):
+            t_curr = k * self.dt
+            
+            # ─── 1. Trafik Işığı (s = 400.0) ──────────────────────────────────
+            # 30 saniyelik döngü: 12s Yeşil, 3s Sarı, 15s Kırmızı
+            cycle_time = t_curr % 30.0
+            if cycle_time < 12.0:
+                tl_color = "green"
+            elif cycle_time < 15.0:
+                tl_color = "yellow"
+            else:
+                tl_color = "red"
+                
+            d_light = 400.0 - (s % self.lap_len)
+            if d_light < -self.lap_len / 2: d_light += self.lap_len
+            elif d_light > self.lap_len / 2: d_light -= self.lap_len
+            
+            tl_stop = False
+            if tl_color in ["red", "yellow"] and 0.0 < d_light <= 30.0:
+                tl_stop = True
+                
+            # ─── 2. Yaya Geçidi (s = 800.0) ────────────────────────────────────
+            # 65 - 75 saniyeler arasında yaya yola çıksın
+            ped_active = (65.0 <= t_curr <= 75.0)
+            d_ped = 800.0 - (s % self.lap_len)
+            if d_ped < -self.lap_len / 2: d_ped += self.lap_len
+            elif d_ped > self.lap_len / 2: d_ped -= self.lap_len
+            
+            ped_stop = False
+            if ped_active and 0.0 < d_ped <= 25.0:
+                ped_stop = True
+                
             # Duraklara olan mesafeleri kontrol et
             d_stops = {}
             for stop in self.bus_stops:
@@ -123,7 +157,6 @@ class RouteGenerator:
             elif state_machine == StopState.BRAKE:
                 d_st = d_stops[active_stop]
                 # 2.5m tolerans içinde ve hız 1.2 m/s altındaysa dur
-                # (daha geniş pencere — otobüs kademeli frenleme ile durabilsin)
                 if abs(d_st) <= 2.5 and v <= 1.2:
                     state_machine = StopState.DWELL
                     s = active_stop  # Konumu tam durak noktasına kilitle
@@ -160,7 +193,13 @@ class RouteGenerator:
                 v_nominal = 8.0  # Düzlükte nominal hız
                 
             # Duruma göre hedef hız profilini ata
-            if state_machine == StopState.CRUISE:
+            if ped_stop:
+                # Yaya için frenleme (2.5m kala dur)
+                v_target = max(0.0, (max(0.0, d_ped - 2.5) / 22.5) * v_nominal)
+            elif tl_stop:
+                # Trafik ışığı için frenleme (2.0m kala dur)
+                v_target = max(0.0, (max(0.0, d_light - 2.0) / 28.0) * v_nominal)
+            elif state_machine == StopState.CRUISE:
                 v_target = v_nominal
             elif state_machine == StopState.APPROACH:
                 v_target = 5.0  # Yaklaşırken yavaşla
@@ -177,7 +216,7 @@ class RouteGenerator:
             accel_limit = 1.0   # m/s^2
             decel_limit = -1.5  # m/s^2
             
-            if state_machine == StopState.DWELL:
+            if state_machine == StopState.DWELL or (tl_stop and d_light <= 2.5) or (ped_stop and d_ped <= 3.0):
                 v = 0.0
             else:
                 error = v_target - v
@@ -197,5 +236,7 @@ class RouteGenerator:
             v_ref[k] = v
             s_ref[k] = s
             stop_states_ref.append(state_machine)
+            tl_states_ref.append(tl_color)
+            ped_states_ref.append(ped_active)
             
-        return time_steps, x_ref, y_ref, theta_ref, v_ref, s_ref, stop_states_ref
+        return time_steps, x_ref, y_ref, theta_ref, v_ref, s_ref, stop_states_ref, tl_states_ref, ped_states_ref

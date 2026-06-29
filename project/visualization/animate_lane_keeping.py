@@ -27,7 +27,7 @@ def run_lane_simulation(total_time=180.0, dt=0.1):
     Rota simülasyonu ve şerit metrikleri hesapla.
     """
     rg = RouteGenerator(dt=dt)
-    time_steps, x_ref, y_ref, theta_ref, v_ref, s_ref, _ = rg.generate_trajectory(total_time)
+    time_steps, x_ref, y_ref, theta_ref, v_ref, s_ref, *extra = rg.generate_trajectory(total_time)
     
     route_waypoints = np.column_stack((x_ref, y_ref))
     lane_model = LaneModel(route_waypoints)
