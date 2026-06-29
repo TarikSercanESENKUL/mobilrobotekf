@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Otonom Otobüs Sensör Füzyonu Simülatörü</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Three.js ve OrbitControls CDNs -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+    <div id="app-container">
+        <!-- 3D Canvas Area -->
+        <div id="canvas-container"></div>
+
+        <!-- Sleek Glassmorphism Dashboard overlays -->
+        <div id="hud-top-left" class="hud-panel">
+            <div class="logo">
+                <i class="fa-solid fa-bus-simple logo-icon"></i>
+                <div class="logo-text">
+                    <h1>ATAK 3D-OS</h1>
+                    <span>Autonomous Bus Simulator v2.0</span>
+                </div>
+            </div>
+            <div class="divider"></div>
+            <div class="telemetry-grid">
+                <div class="tel-item">
+                    <span class="label">Hız</span>
+                    <span class="value" id="val-speed">0.0</span>
+                    <span class="unit">km/h</span>
+                </div>
+                <div class="tel-item">
+                    <span class="label">Mesafe</span>
+                    <span class="value" id="val-distance">0.0</span>
+                    <span class="unit">m</span>
+                </div>
+                <div class="tel-item">
+                    <span class="label">Direksiyon</span>
+                    <span class="value" id="val-steer">0.0</span>
+                    <span class="unit">deg</span>
+                </div>
+                <div class="tel-item">
+                    <span class="label">İvme</span>
+                    <span class="value" id="val-accel">0.0</span>
+                    <span class="unit">m/s²</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="hud-top-right" class="hud-panel">
+            <h3><i class="fa-solid fa-camera"></i> Kamera Modları</h3>
+            <div class="button-group">
+                <button class="btn active" id="btn-cam-chase" onclick="setCameraMode('chase')"><i class="fa-solid fa-car-rear"></i> Takip</button>
+                <button class="btn" id="btn-cam-top" onclick="setCameraMode('top')"><i class="fa-solid fa-plane"></i> Kuş Bakışı</button>
+                <button class="btn" id="btn-cam-orbit" onclick="setCameraMode('orbit')"><i class="fa-solid fa-globe"></i> Serbest</button>
+                <button class="btn" id="btn-cam-cabin" onclick="setCameraMode('cabin')"><i class="fa-solid fa-life-ring"></i> Kabin</button>
+            </div>
+            
+            <div class="divider"></div>
+            
+            <h3><i class="fa-solid fa-traffic-light"></i> Kentsel Durum</h3>
+            <div class="status-row">
+                <span>Trafik Sinyali:</span>
+                <span id="status-light" class="badge badge-green">YEŞİL</span>
+            </div>
+            <div class="status-row">
+                <span>Yaya Geçidi:</span>
+                <span id="status-ped" class="badge badge-green">SERBEST</span>
+            </div>
+            <div class="status-row">
+                <span>Yolcu İşlemi:</span>
+                <span id="status-dwell" class="badge">CRUISE</span>
+            </div>
+        </div>
+
+        <div id="hud-bottom-left" class="hud-panel">
+            <h3><i class="fa-solid fa-satellite-dish"></i> Otonom Otobüs Sensör Seti</h3>
+            <div class="sensor-list">
+                <div class="sensor-row active" id="sensor-lidar">
+                    <div class="sensor-info">
+                        <i class="fa-solid fa-circle-notch rotating"></i>
+                        <span>3D LiDAR (360° Tarama)</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="chk-lidar" checked onchange="toggleSensor('lidar')">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="sensor-row active" id="sensor-radar">
+                    <div class="sensor-info">
+                        <i class="fa-solid fa-wifi"></i>
+                        <span>77GHz Ön RADAR (Headway)</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="chk-radar" checked onchange="toggleSensor('radar')">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="sensor-row active" id="sensor-camera">
+                    <div class="sensor-info">
+                        <i class="fa-solid fa-video"></i>
+                        <span>360° Çevre Kameraları (6 FOV)</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="chk-camera" checked onchange="toggleSensor('camera')">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="sensor-row active" id="sensor-ultrasonic">
+                    <div class="sensor-info">
+                        <i class="fa-solid fa-wave-square"></i>
+                        <span>12x Bumper Ultrasonik Sensör</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="chk-ultrasonic" checked onchange="toggleSensor('ultrasonic')">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="sensor-row active" id="sensor-rtk">
+                    <div class="sensor-info">
+                        <i class="fa-solid fa-satellite"></i>
+                        <span>RTK GNSS + INS (Lokalizasyon)</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="chk-rtk" checked onchange="toggleSensor('rtk')">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div id="hud-bottom-right" class="hud-panel">
+            <h3><i class="fa-solid fa-chart-line"></i> Konum Kestirim Doğruluğu</h3>
+            <div class="accuracy-metrics">
+                <div class="acc-row">
+                    <span>Filtre Tipi:</span>
+                    <span class="value-highlight">Adaptif EKF</span>
+                </div>
+                <div class="acc-row">
+                    <span>Anlık Konum Hatası (EKF):</span>
+                    <span class="value-highlight" id="val-ekf-err">0.052 m</span>
+                </div>
+                <div class="acc-row">
+                    <span>GNSS Hata Seviyesi:</span>
+                    <span class="value-highlight" id="val-gnss-err">Normal</span>
+                </div>
+            </div>
+            
+            <div class="divider"></div>
+            
+            <div class="control-panel">
+                <button class="btn-control" id="btn-pause" onclick="togglePause()"><i class="fa-solid fa-pause"></i> Duraklat</button>
+                <button class="btn-control" id="btn-reset" onclick="resetSim()"><i class="fa-solid fa-rotate-left"></i> Yeniden Başlat</button>
+            </div>
+        </div>
+
+        <!-- Speed Gauge/Telemetry Overlay at bottom center -->
+        <div id="hud-center-bottom">
+            <div class="sensor-radar-hud">
+                <span class="hud-label">FRONT RADAR ACC SCANNER</span>
+                <div class="radar-scan-line"></div>
+                <span class="hud-val" id="radar-val">Mesafe: Güvenli (>50m)</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script loading -->
+    <script src="simulator.js"></script>
+</body>
+</html>

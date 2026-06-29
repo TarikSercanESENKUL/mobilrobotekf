@@ -1,3 +1,0 @@
-method,mean_stop_error_m,max_stop_error_m,successful_stop_rate_percent,dwell_completion_rate_percent,mean_dwell_time_s,overshot_count,early_stop_count,mean_comfort_penalty
-Rule-Based,7.251821276697268,10.493450275090645,0.0,0.0,0.0,0,85,0.004999999999999999
-DQN,0.3919706950379069,1.1024096042243634,82.0,82.0,12.38199999999997,6,0,0.06500115460675648
